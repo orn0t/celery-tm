@@ -1,0 +1,6 @@
+*.pyc
+.idea
+.DS_STORE
+*.db
+*.pid
+*.rdb
