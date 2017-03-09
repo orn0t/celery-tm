@@ -61,9 +61,9 @@ Using REST API for task management
 POST /api/v.0.1/task
 
 {
-  "name": "tasks.module.task_name"
+  "name": "tasks.module.task_name",
   "description": "human readable task name",
-  "run_type": "once"
+  "run_type": "once",
   "schedule": "now"
 }
 ```
