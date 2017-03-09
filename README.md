@@ -38,3 +38,15 @@ And set proper `CELERY_TM_TASKS_URL` pointing to API endpoint (http://127.0.0.1:
 Then use `beat` argument to run or look for http://docs.celeryproject.org/en/latest/userguide/daemonizing.html
 
 `celery -A beat beat --loglevel=info`
+
+# Running API service
+
+API web service is based on Flask micro framework so you can set `FLASK_APP` and use `flask run` command
+
+But the simplest way to start is to directly run `python app.py` from application directory
+
+By default app will run on `http://127.0.0.1:5000` but you can change `CELERY_TM_API_HOST` and `CELERY_TM_API_PORT`
+
+# Using REST API for task management
+ 
+ 

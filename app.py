@@ -3,6 +3,8 @@
 
 import time
 
+import os
+
 from flask import Flask, request, jsonify
 
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, func
@@ -139,7 +141,7 @@ def tasks():
     return jsonify([t.as_dict() for t in all_tasks])
 
 
-@app.route('/api/v.0.1/poll', methods=['GET'])
+@app.route('/api/v.0.1/pool', methods=['GET'])
 def poll():
     all_tasks = TaskModel.query.filter_by(run_type='recurring').all()
 
@@ -165,4 +167,6 @@ def result(uuid):
 
 if __name__ == "__main__":
     # @todo: configure host/port from env
-    app.run()
+    APP_HOST = os.getenv('CELERY_TM_API_HOST', '127.0.0.1')
+    APP_PORT = os.getenv('CELERY_TM_API_PORT', 5000)
+    app.run(host=APP_HOST, port=APP_PORT)
