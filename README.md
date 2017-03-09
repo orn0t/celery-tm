@@ -45,8 +45,59 @@ API web service is based on Flask micro framework so you can set `FLASK_APP` and
 
 But the simplest way to start is to directly run `python app.py` from application directory
 
-By default app will run on `http://127.0.0.1:5000` but you can change `CELERY_TM_API_HOST` and `CELERY_TM_API_PORT`
+By default app will run on `http://127.0.0.1:5000` 
+To use custom host/port you can change `CELERY_TM_API_HOST` and `CELERY_TM_API_PORT` environment variables 
 
 # Using REST API for task management
  
+* Adding new task that runs immediately and only once  
  
+```json
+POST /api/v.0.1/task
+
+{
+  "name": "tasks.module.task_name"
+  "description": "human readable task name",
+  "run_type": "once"
+  "schedule": "now"
+}
+```
+
+* Adding scheduled single-time task
+
+```json
+POST /api/v.0.1/task
+
+{
+  "name": "tasks.module.task_name"
+  "description": "human readable task name",
+  "run_type": "once"
+  "schedule": __int__timespamp_in_future__
+}
+```
+
+* Adding scheduled recurring task using cron-like syntax
+
+```json
+POST /api/v.0.1/task
+
+{
+  "name": "tasks.module.task_name"
+  "description": "human readable task name",
+  "run_type": "recurring"
+  "schedule": "*/4 * * * *"
+}
+```
+
+* Adding scheduled recurring task with simple fixed interval in seconds
+
+```json
+POST /api/v.0.1/task
+
+{
+  "name": "tasks.module.task_name"
+  "description": "human readable task name",
+  "run_type": "recurring"
+  "schedule": 3000
+}
+```
