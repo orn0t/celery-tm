@@ -29,3 +29,12 @@ Or check http://docs.celeryproject.org/en/latest/userguide/daemonizing.html if y
 
 # Running beat
 
+Beat is designed for getting periodic tasks from API service and putting them onto celery broker
+
+Check `CELERY_TM_BROKER`, `CELERY_TM_TIMEZONE` variables according to your `worker` configuration 
+
+And set proper `CELERY_TM_TASKS_URL` pointing to API endpoint (http://127.0.0.1:5000/api/v.0.1/pool by default)
+
+Then use `beat` argument to run or look for http://docs.celeryproject.org/en/latest/userguide/daemonizing.html
+
+`celery -A beat beat --loglevel=info`

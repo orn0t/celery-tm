@@ -1,28 +1,22 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import os
 import requests
 from celery import Celery, signals
 from celery.beat import Scheduler, ScheduleEntry
 from celery.schedules import crontab
 from requests import ConnectionError
 
-app = Celery(__name__, broker="redis://localhost:6379/0")
-app.conf.timezone = 'Europe/Kiev'
+tm_broker = os.getenv('CELERY_TM_BROKER', 'redis://localhost:6379/0')
+app = Celery(__name__, broker=tm_broker)
+app.conf.timezone = os.getenv('CELERY_TM_TIMEZONE', 'Europe/Kiev')
 app.conf.beat_max_loop_interval = 10
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    # Calls test('hello') every 10 seconds.
-    # sender.add_periodic_task(10.0, app.signature('tasks.bar.first'), name='add every 10')
     pass
 
-'''
-        {
-            u'celery.backend_cleanup': <ScheduleEntry: celery.backend_cleanup celery.backend_cleanup() <crontab: 0 4 * * * (m/h/d/dM/MY)>,
-            u'add every 10': <ScheduleEntry: add every 10 tasks.bar.first() <freq: 10.00 seconds>
-        }
-'''
 
 class DynamicScheduler(Scheduler):
     """Scheduler backed by :mod:`shelve` database."""
@@ -55,8 +49,8 @@ class DynamicScheduler(Scheduler):
     def all_as_schedule(self):
         s = {}
         try:
-            # @todo: move to env/arguments
-            r = requests.get('http://127.0.0.1:5000/api/v.0.1/poll')
+            tasks_url = os.getenv('CELERY_TM_TASKS_URL', 'http://127.0.0.1:5000/api/v.0.1/pool')
+            r = requests.get(tasks_url)
             if r.status_code == 200:
                 s = {}
 
