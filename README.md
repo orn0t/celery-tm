@@ -101,3 +101,15 @@ POST /api/v.0.1/task
   "schedule": 3000
 }
 ```
+
+* Removing task
+
+```
+DELETE /api/v.0.1/task/<int: task_id>
+```
+
+* List all tasks
+
+```
+GET /api/v.0.1/tasks
+```
