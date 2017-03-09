@@ -7,7 +7,7 @@ from celery import Celery, signals
 
 
 tm_broker = os.getenv('CELERY_TM_BROKER', 'redis://localhost:6379/0')
-app = Celery(__name__, tm_broker)
+app = Celery(__name__, broker=tm_broker)
 app.conf.timezone = os.getenv('CELERY_TM_TIMEZONE', 'Europe/Kiev')
 
 tasks_path = os.getenv('CELERY_TM_TASKS', os.path.dirname(__file__) + '/tasks/*.py')
