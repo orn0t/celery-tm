@@ -13,23 +13,32 @@ app = Celery(__name__, broker=tm_broker)
 app.conf.timezone = os.getenv('CELERY_TM_TIMEZONE', 'Europe/Kiev')
 app.conf.beat_max_loop_interval = 10
 
-@app.on_after_configure.connect
-def setup_periodic_tasks(sender, **kwargs):
-    pass
-
 
 class DynamicScheduler(Scheduler):
-    """Scheduler backed by :mod:`shelve` database."""
-
     _store = {}
+    _last_update = 0
 
     def __init__(self, *args, **kwargs):
         Scheduler.__init__(self, *args, **kwargs)
 
+    def is_schedule_changed(self):
+        # Checking remote timestamp that changing on each schedule modification
+        try:
+            updates_url = os.getenv('CELERY_TM_TASKS_URL', 'http://127.0.0.1:5000/api/v.0.1/last_update')
+            r = requests.get(updates_url)
+            if r.status_code == 200:
+                res = r.json()
+
+                if int(res['date']) > self._last_update:
+                    self._last_update = int(res['date'])
+                    return True
+
+        except ConnectionError:
+            print ConnectionError
+
+        return False
+
     def setup_schedule(self):
-        self._store = {}
-        self.install_default_entries(self.schedule)
-        self.update_from_dict(self.app.conf.beat_schedule)
         self.sync()
 
     def get_schedule(self):
@@ -40,34 +49,37 @@ class DynamicScheduler(Scheduler):
 
     @property
     def schedule(self):
-        print 'schedule request'
+        if self.is_schedule_changed():
+            self.sync()
+
+            self._heap = None
+
         return self._store
 
-    def schedule_changed(self):
-        pass
-
-    def all_as_schedule(self):
+    def update_schedule(self):
+        # Pooling remote for tasks list and converting them to proper Entry objects
         s = {}
         try:
             tasks_url = os.getenv('CELERY_TM_TASKS_URL', 'http://127.0.0.1:5000/api/v.0.1/pool')
             r = requests.get(tasks_url)
             if r.status_code == 200:
-                s = {}
-
                 for task in r.json():
+                    # We have two types of schedule notation - integer interval or crontab string
                     if task['schedule'].isdigit():
-                        s[task['description']] = self._maybe_entry(task['description'], {
-                            'task': task['name'],
-                            'schedule': int(task['schedule'])
-                        })
-
+                        schedule = int(task['schedule'])
                     else:
                         [m, h, d, M, F] = task['schedule'].split(' ')
+                        schedule = crontab(minute=m, hour=h, day_of_month=d, month_of_year=M, day_of_week=F)
 
-                        s[task['description']] = self._maybe_entry(task['description'], {
-                            'task': task['name'],
-                            'schedule': crontab(minute=m, hour=h, day_of_month=d, month_of_year=M, day_of_week=F)
-                        })
+                    # Creating task Entry
+                    s[task['description']] = self._maybe_entry(task['description'], {
+                        'task': 'worker.dynamicTask',
+                        'kwargs': {
+                            'taskname': task['name'],
+                            'taskargs': task['args']
+                        },
+                        'schedule': schedule
+                    })
 
         except ConnectionError:
             print ConnectionError
@@ -75,12 +87,7 @@ class DynamicScheduler(Scheduler):
         return s
 
     def sync(self):
-        self._store = self.all_as_schedule()
-        print self._store
-        print 'sync call'
-
-    def close(self):
-        self.sync()
+        self._store = self.update_schedule()
 
     @property
     def info(self):
