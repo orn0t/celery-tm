@@ -3,6 +3,7 @@
 
 import glob
 import os
+import importlib
 from celery import Celery, signals
 
 

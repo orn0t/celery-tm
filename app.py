@@ -46,17 +46,19 @@ class TaskModel(SQLModel, BaseModel):
     run_type = Column(String(32))
     description = Column(String(64))
     schedule = Column(String(64))
-    last_run = Column(DateTime)
+    args = Column(Text)
+    last_run = Column(String(32))
     exit_code = Column(String(64))
     # @todo: find out how to save uuid in more proper way
     uuid = Column(String(64))
 
     # @todo: encapsulate with setters
-    def __init__(self, name, run_type, description, schedule):
+    def __init__(self, name, run_type, description, schedule, args):
         self.name = name
         self.run_type = run_type
         self.description = description
         self.schedule = schedule
+        self.args = args
 
 
 class LogItemModel(SQLModel, BaseModel):
@@ -96,24 +98,29 @@ def new_task():
     if not request.json:
         return 'INVALID_JSON_REQUEST', 400
 
+    if request.json['args']:
+        task_args = jsonify(request.json['args'])
+    else:
+        task_args = '[]'
+
     # @todo: add validation on JSON data
     # @todo: simplify creating models from JSON
     task = TaskModel(request.json['name'],
                      request.json['run_type'],
                      request.json['description'],
-                     request.json['schedule'])
+                     request.json['schedule'],
+                     task_args)
 
     if 'once' == task.run_type:
         if 'now' == task.schedule:
-
-            # @todo: get/save unique task id
-            task.uuid = str(cel.send_task(task.name))
+            uuid = cel.send_task('worker.dynamicTask', kwargs={'taskname': task.name, 'taskargs': task.args})
+            task.uuid = str(uuid)
         else:
             time_now = time.time()
             time_gap = (int(task.schedule) - time_now) / 1000
 
             # @todo: get/save unique task id
-            cel.send_task(task.name, countdown=time_gap)
+            cel.send_task('worker.dynamicTask', kwargs={'taskname': task.name, 'taskargs': task.args}, countdown=time_gap)
 
     sql_session.add(task)
 
