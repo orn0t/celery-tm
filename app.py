@@ -7,19 +7,18 @@ import os
 
 from flask import Flask, request, jsonify
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, func
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, func, Text, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from celery import Celery
-from celery.schedules import crontab
-
 
 app = Flask(__name__)
 
 # @todo: extract to app env/arguments
 app.debug = True
 
+# @todo: extract to app env/arguments
 cel = Celery(__name__, broker='redis://localhost:6379/0')
 
 sql_engine = create_engine('sqlite:///tasks.db')
@@ -67,6 +66,21 @@ class LogItemModel(SQLModel, BaseModel):
     created = Column(DateTime, default=func.now())
 
 
+class UpdatesModel(SQLModel, BaseModel):
+    __tablename__ = 'updates'
+
+    id = Column(Integer, primary_key=True)
+    date = Column(Integer, default=0)
+
+    def __init__(self, date):
+        self.date = date
+
+
+@event.listens_for(UpdatesModel.__table__, 'after_create')
+def insert_default_updater_record(*args, **kwargs):
+    sql_session.add(UpdatesModel(int(time.time())))
+    sql_session.commit()
+
 # @todo: look for some migration tools for updating schemas
 SQLModel.metadata.create_all(sql_engine)
 
@@ -102,6 +116,9 @@ def new_task():
             cel.send_task(task.name, countdown=time_gap)
 
     sql_session.add(task)
+
+    sql_session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})
+
     sql_session.commit()
 
     return 'TASK_ADDED: %d' % task.id, 200
@@ -114,6 +131,10 @@ def act_task(task_id):
         if TaskModel.query.filter_by(id=task_id).delete():
 
             # @todo: revoke/remove task from celery queue!
+            sql_session.commit()
+
+            sql_session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})
+
             sql_session.commit()
 
             return 'TASK_REMOVED: %d' % task_id, 200
@@ -141,8 +162,15 @@ def tasks():
     return jsonify([t.as_dict() for t in all_tasks])
 
 
+@app.route('/api/v.0.1/last_update')
+def last_update():
+    update = UpdatesModel.query.filter_by(id=1).first()
+
+    return jsonify(update.as_dict())
+
+
 @app.route('/api/v.0.1/pool', methods=['GET'])
-def poll():
+def pool():
     all_tasks = TaskModel.query.filter_by(run_type='recurring').all()
 
     return jsonify([t.as_dict() for t in all_tasks])
