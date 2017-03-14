@@ -1,23 +1,22 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-
 import time
-
 import os
 
 from flask import Flask, request, jsonify
-from flask_restful import Resource, Api, reqparse
-from flask_sqlalchemy import SQLAlchemy
+from flask_restful import Resource, Api, reqparse, marshal_with, fields
 
-from sqlalchemy import  Column, Integer, String, DateTime, func, Text, event
+from sqlalchemy import func, event
 
 from celery import Celery
+from models import db, TaskModel, UpdatesModel
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
 api = Api(app)
 
-db = SQLAlchemy(app)
+db.app = app
+db.init_app(app)
 
 # @todo: extract to app env/arguments
 app.debug = True
@@ -28,60 +27,13 @@ cel = Celery(__name__, broker='redis://localhost:6379/0')
 
 """ Databese Models """
 
-# @todo: extract
-class BaseModel:
-    def as_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
-# @todo: extract to models
-# @todo: add proper fields validation
-class TaskModel(db.Model, BaseModel):
-    __tablename__ = 'tasks'
-
-    id = Column(Integer, primary_key=True)
-    created = Column(DateTime, default=func.now())
-    name = Column(String(64))
-    # @todo: replace with enum
-    run_type = Column(String(32))
-    description = Column(String(64))
-    schedule = Column(String(64))
-    args = Column(Text)
-    last_run = Column(String(32))
-    exit_code = Column(String(64))
-    # @todo: find out how to save uuid in more proper way
-    uuid = Column(String(64))
-
-    # @todo: encapsulate with setters
-    def __init__(self, data):
-        self.name = data.function
-        self.run_type = ''
-        self.description = ''
-        self.schedule = data.schedule
-
-        if 'args' in data.keys():
-            self.args = jsonify(data.args)
-
-
-class LogItemModel(db.Model, BaseModel):
-    __tablename__ = 'logs'
-
-    id = Column(Integer, primary_key=True)
-    created = Column(DateTime, default=func.now())
-
-
-class UpdatesModel(db.Model, BaseModel):
-    __tablename__ = 'updates'
-
-    id = Column(Integer, primary_key=True)
-    date = Column(Integer, default=0)
-
-    def __init__(self, date):
-        self.date = date
-
-
 @event.listens_for(UpdatesModel.__table__, 'after_create')
 def insert_default_updater_record(*args, **kwargs):
     db.session.add(UpdatesModel(int(time.time())))
+    db.session.commit()
+
+def update_timestamp():
+    db.session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})
     db.session.commit()
 
 db.create_all()
@@ -93,15 +45,17 @@ def teardown_request(exception):
 """ Application routes """
 
 class Schedule(Resource):
-    def __init__(self):
-        self.schedule_parser = reqparse.RequestParser()
-        self.schedule_parser.add_argument('function', type=str, required=True, location='json')
-        self.schedule_parser.add_argument('schedule', type=str, required=True, location='json')
-        self.schedule_parser.add_argument('args', type=list, location='json')
-
+    @marshal_with({'id': fields.Integer, 'created': fields.DateTime, 'function': fields.String, 'schedule': fields.String})
     def post(self):
-        schedule = self.schedule_parser.parse_args()
+        parser = reqparse.RequestParser()
+        parser.add_argument('function', type=str, required=True, location='json')
+        parser.add_argument('schedule', type=str, required=True, location='json')
+        parser.add_argument('args', type=list, location='json')
+        schedule = parser.parse_args()
 
+        task = TaskModel(schedule)
+
+        uuid = ''
         if 'now' == schedule.schedule:
             uuid = cel.send_task('worker.dynamicTask', kwargs={'taskname': schedule.function, 'taskargs': schedule.args})
         elif schedule.schedule.isdigit():
@@ -110,30 +64,29 @@ class Schedule(Resource):
 
             uuid = cel.send_task('worker.dynamicTask', kwargs={'taskname': schedule.function, 'taskargs': schedule.args}, countdown=time_gap)
 
-        task = TaskModel(schedule)
-        task.uuid = uuid
+        task.uuid = str(uuid)
 
         db.session.add(task)
-        db.session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})
         db.session.commit()
+        update_timestamp()
 
-        return 'TASK_ADDED: %d' % task.id, 200
+        if task.id:
+            return task, 201
+
+    def delete(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('id', type=int, location='json')
+        fields = parser.parse_args()
+
+        if TaskModel.query.filter_by(**fields).delete():
+            db.session.commit()
+            update_timestamp()
+            return '', 204
+        else:
+            return '', 404
 
 @app.route('/api/v1.0/task/<int:task_id>', methods=['GET', 'PATCH', 'DELETE'])
 def act_task(task_id):
-
-    if 'DELETE' == request.method:
-        if TaskModel.query.filter_by(id=task_id).delete():
-
-            # @todo: revoke/remove task from celery queue!
-            db.session.commit()
-            db.session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})
-            db.session.commit()
-
-            return 'TASK_REMOVED: %d' % task_id, 200
-        else:
-            return 'TASK_NOT_FOUND: %d' % task_id, 404
-
     if 'GET' == request.method:
         task = TaskModel.query.filter_by(id=task_id).first()
 
