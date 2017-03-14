@@ -92,11 +92,11 @@ def teardown_request(exception):
     sql_session.remove()
 
 
-@app.route('/api/v.0.1/task', methods=['POST'])
+@app.route('/api/v1.0/schedule', methods=['POST'])
 def new_task():
 
     if not request.json:
-        return 'INVALID_JSON_REQUEST', 400
+        return '', 400
 
     if request.json['args']:
         task_args = jsonify(request.json['args'])
