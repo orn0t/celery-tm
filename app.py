@@ -3,7 +3,7 @@
 import time
 import os
 
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify
 from flask_restful import Resource, Api, reqparse, marshal_with, fields
 
 from sqlalchemy import func, event
@@ -32,9 +32,10 @@ def insert_default_updater_record(*args, **kwargs):
     db.session.add(UpdatesModel(int(time.time())))
     db.session.commit()
 
-def update_timestamp():
+
+@event.listens_for(db.session, 'before_commit')
+def update_timestamp(*args, **kwargs):
     db.session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})
-    db.session.commit()
 
 db.create_all()
 
@@ -43,9 +44,23 @@ def teardown_request(exception):
     db.session.remove()
 
 """ Application routes """
-
 class Schedule(Resource):
-    @marshal_with({'id': fields.Integer, 'created': fields.DateTime, 'function': fields.String, 'schedule': fields.String})
+    schema = {'id': fields.Integer, 'created': fields.DateTime, 'function': fields.String, 'schedule': fields.String}
+
+    @marshal_with(schema)
+    def get(self):
+        parser = reqparse.RequestParser()
+        parser.add_argument('id', type=int, required=False)
+        fields = parser.parse_args()
+
+        if fields.id:
+            tasks = TaskModel.query.filter_by(**fields).all()
+        else:
+            tasks = TaskModel.query.all()
+
+        return tasks, 200
+
+    @marshal_with(schema)
     def post(self):
         parser = reqparse.RequestParser()
         parser.add_argument('function', type=str, required=True, location='json')
@@ -68,7 +83,6 @@ class Schedule(Resource):
 
         db.session.add(task)
         db.session.commit()
-        update_timestamp()
 
         if task.id:
             return task, 201
@@ -80,26 +94,9 @@ class Schedule(Resource):
 
         if TaskModel.query.filter_by(**fields).delete():
             db.session.commit()
-            update_timestamp()
             return '', 204
         else:
             return '', 404
-
-@app.route('/api/v1.0/task/<int:task_id>', methods=['GET', 'PATCH', 'DELETE'])
-def act_task(task_id):
-    if 'GET' == request.method:
-        task = TaskModel.query.filter_by(id=task_id).first()
-
-        if task:
-            return jsonify(task.as_dict()), 200
-        else:
-            return 'TASK_NOT_FOUND: %d' % task_id, 404
-
-    if 'PATCH' == request.method:
-        pass
-
-    return 'INVALID REQUEST', 400
-
 
 @app.route('/api/v1.0/tasks', methods=['GET'])
 def tasks():
