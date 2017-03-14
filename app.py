@@ -6,14 +6,18 @@ import time
 import os
 
 from flask import Flask, request, jsonify
+from flask_restful import Resource, Api, reqparse
+from flask_sqlalchemy import SQLAlchemy
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, func, Text, event
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy import  Column, Integer, String, DateTime, func, Text, event
 
 from celery import Celery
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
+api = Api(app)
+
+db = SQLAlchemy(app)
 
 # @todo: extract to app env/arguments
 app.debug = True
@@ -21,13 +25,8 @@ app.debug = True
 # @todo: extract to app env/arguments
 cel = Celery(__name__, broker='redis://localhost:6379/0')
 
-sql_engine = create_engine('sqlite:///tasks.db')
-sql_session = scoped_session(sessionmaker(autocommit=False,
-                                          autoflush=False,
-                                          bind=sql_engine))
 
-SQLModel = declarative_base()
-SQLModel.query = sql_session.query_property()
+""" Databese Models """
 
 # @todo: extract
 class BaseModel:
@@ -36,7 +35,7 @@ class BaseModel:
 
 # @todo: extract to models
 # @todo: add proper fields validation
-class TaskModel(SQLModel, BaseModel):
+class TaskModel(db.Model, BaseModel):
     __tablename__ = 'tasks'
 
     id = Column(Integer, primary_key=True)
@@ -53,22 +52,24 @@ class TaskModel(SQLModel, BaseModel):
     uuid = Column(String(64))
 
     # @todo: encapsulate with setters
-    def __init__(self, name, run_type, description, schedule, args):
-        self.name = name
-        self.run_type = run_type
-        self.description = description
-        self.schedule = schedule
-        self.args = args
+    def __init__(self, data):
+        self.name = data.function
+        self.run_type = ''
+        self.description = ''
+        self.schedule = data.schedule
+
+        if 'args' in data.keys():
+            self.args = jsonify(data.args)
 
 
-class LogItemModel(SQLModel, BaseModel):
+class LogItemModel(db.Model, BaseModel):
     __tablename__ = 'logs'
 
     id = Column(Integer, primary_key=True)
     created = Column(DateTime, default=func.now())
 
 
-class UpdatesModel(SQLModel, BaseModel):
+class UpdatesModel(db.Model, BaseModel):
     __tablename__ = 'updates'
 
     id = Column(Integer, primary_key=True)
@@ -80,69 +81,54 @@ class UpdatesModel(SQLModel, BaseModel):
 
 @event.listens_for(UpdatesModel.__table__, 'after_create')
 def insert_default_updater_record(*args, **kwargs):
-    sql_session.add(UpdatesModel(int(time.time())))
-    sql_session.commit()
+    db.session.add(UpdatesModel(int(time.time())))
+    db.session.commit()
 
-# @todo: look for some migration tools for updating schemas
-SQLModel.metadata.create_all(sql_engine)
-
+db.create_all()
 
 @app.teardown_request
 def teardown_request(exception):
-    sql_session.remove()
+    db.session.remove()
 
+""" Application routes """
 
-@app.route('/api/v1.0/schedule', methods=['POST'])
-def new_task():
+class Schedule(Resource):
+    def __init__(self):
+        self.schedule_parser = reqparse.RequestParser()
+        self.schedule_parser.add_argument('function', type=str, required=True, location='json')
+        self.schedule_parser.add_argument('schedule', type=str, required=True, location='json')
+        self.schedule_parser.add_argument('args', type=list, location='json')
 
-    if not request.json:
-        return '', 400
+    def post(self):
+        schedule = self.schedule_parser.parse_args()
 
-    if request.json['args']:
-        task_args = jsonify(request.json['args'])
-    else:
-        task_args = '[]'
-
-    # @todo: add validation on JSON data
-    # @todo: simplify creating models from JSON
-    task = TaskModel(request.json['name'],
-                     request.json['run_type'],
-                     request.json['description'],
-                     request.json['schedule'],
-                     task_args)
-
-    if 'once' == task.run_type:
-        if 'now' == task.schedule:
-            uuid = cel.send_task('worker.dynamicTask', kwargs={'taskname': task.name, 'taskargs': task.args})
-            task.uuid = str(uuid)
-        else:
+        if 'now' == schedule.schedule:
+            uuid = cel.send_task('worker.dynamicTask', kwargs={'taskname': schedule.function, 'taskargs': schedule.args})
+        elif schedule.schedule.isdigit():
             time_now = time.time()
-            time_gap = (int(task.schedule) - time_now) / 1000
+            time_gap = (int(schedule.schedule) - time_now) / 1000
 
-            # @todo: get/save unique task id
-            cel.send_task('worker.dynamicTask', kwargs={'taskname': task.name, 'taskargs': task.args}, countdown=time_gap)
+            uuid = cel.send_task('worker.dynamicTask', kwargs={'taskname': schedule.function, 'taskargs': schedule.args}, countdown=time_gap)
 
-    sql_session.add(task)
+        task = TaskModel(schedule)
+        task.uuid = uuid
 
-    sql_session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})
+        db.session.add(task)
+        db.session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})
+        db.session.commit()
 
-    sql_session.commit()
+        return 'TASK_ADDED: %d' % task.id, 200
 
-    return 'TASK_ADDED: %d' % task.id, 200
-
-
-@app.route('/api/v.0.1/task/<int:task_id>', methods=['GET', 'PATCH', 'DELETE'])
+@app.route('/api/v1.0/task/<int:task_id>', methods=['GET', 'PATCH', 'DELETE'])
 def act_task(task_id):
 
     if 'DELETE' == request.method:
         if TaskModel.query.filter_by(id=task_id).delete():
 
             # @todo: revoke/remove task from celery queue!
-            sql_session.commit()
-
-            sql_session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})
-
-            sql_session.commit()
+            db.session.commit()
+            db.session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})
+            db.session.commit()
 
             return 'TASK_REMOVED: %d' % task_id, 200
         else:
@@ -162,33 +148,33 @@ def act_task(task_id):
     return 'INVALID REQUEST', 400
 
 
-@app.route('/api/v.0.1/tasks', methods=['GET'])
+@app.route('/api/v1.0/tasks', methods=['GET'])
 def tasks():
     all_tasks = TaskModel.query.all()
 
     return jsonify([t.as_dict() for t in all_tasks])
 
 
-@app.route('/api/v.0.1/last_update')
+@app.route('/api/v1.0/last_update')
 def last_update():
     update = UpdatesModel.query.filter_by(id=1).first()
 
     return jsonify(update.as_dict())
 
 
-@app.route('/api/v.0.1/pool', methods=['GET'])
+@app.route('/api/v1.0/pool', methods=['GET'])
 def pool():
     all_tasks = TaskModel.query.filter_by(run_type='recurring').all()
 
     return jsonify([t.as_dict() for t in all_tasks])
 
 
-@app.route('/api/v.0.1/log', methods=['GET', 'POST'])
+@app.route('/api/v1.0/log', methods=['GET', 'POST'])
 def log():
     pass
 
 
-@app.route('/api/v.0.1/result/<uuid>', methods=['POST'])
+@app.route('/api/v1.0/result/<uuid>', methods=['POST'])
 def result(uuid):
     task = TaskModel.query.filter_by(uuid=uuid).first()
 
@@ -199,6 +185,8 @@ def result(uuid):
 
     return 'OK', 200
 
+
+api.add_resource(Schedule, '/api/v1.0/schedule')
 
 if __name__ == "__main__":
     # @todo: configure host/port from env
