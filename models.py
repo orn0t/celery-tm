@@ -1,4 +1,6 @@
 import json
+import time
+from sqlalchemy import event
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
@@ -44,3 +46,14 @@ class LogItemModel(db.Model, BaseModel):
 
     id = db.Column(db.Integer, primary_key=True)
     created = db.Column(db.DateTime, default=db.func.now())
+
+
+@event.listens_for(UpdatesModel.__table__, 'after_create')
+def insert_default_updater_record(*args, **kwargs):
+    db.session.add(UpdatesModel(int(time.time())))
+    db.session.commit()
+
+
+@event.listens_for(db.session, 'before_commit')
+def update_timestamp(*args, **kwargs):
+    db.session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})

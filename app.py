@@ -18,25 +18,6 @@ api = Api(app)
 db.app = app
 db.init_app(app)
 
-# @todo: extract to app env/arguments
-app.debug = True
-
-# @todo: extract to app env/arguments
-cel = Celery(__name__, broker='redis://localhost:6379/0')
-
-
-""" Databese Models """
-
-@event.listens_for(UpdatesModel.__table__, 'after_create')
-def insert_default_updater_record(*args, **kwargs):
-    db.session.add(UpdatesModel(int(time.time())))
-    db.session.commit()
-
-
-@event.listens_for(db.session, 'before_commit')
-def update_timestamp(*args, **kwargs):
-    db.session.query(UpdatesModel).filter_by(id=1).update({'date': int(time.time())})
-
 db.create_all()
 
 @app.teardown_request
