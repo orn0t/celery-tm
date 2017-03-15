@@ -11,14 +11,12 @@ app.conf.timezone = settings.CELERY_TM_TIMEZONE
 
 
 @app.task
-def dynamicTask(taskname, taskargs):
+def dynamicTask(taskname, taskargs=None):
     # We cant load function directly, so splitting name
     modulename, funcname = taskname.rsplit('.', 1)
 
     module = importlib.import_module(modulename)
     func = getattr(module, funcname)
-
-    print taskname, taskargs
 
     # arguments can be proceed as positional list or key-value
     if not taskargs:
@@ -40,5 +38,5 @@ def task_success(**kwargs):
 
 
 @signals.task_failure.connect
-def task_success(**kwargs):
+def task_failure(**kwargs):
     pass
