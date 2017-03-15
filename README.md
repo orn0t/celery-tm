@@ -1,56 +1,64 @@
-Creating tasks
---------------
-
-Each task must be described using default Celery `@task` decorator
-
-```python
-@app.task
-def first():
-    print "first bar"
-    return True
-```
-
-Tasks must be stored inside `tasks` directory on same level with `worker.py` to be autoloaded
-
-Otherwise you must provide `CELERY_TM_TASKS` environment variable for tasks path
-
-Running worker
---------------
-
-By default worker uses Redis on `redis://localhost:6379/0` as tasks broker 
-
-You may use `CELERY_TM_BROKER` environment variable to override this setting
-
-If you have some time-zone sensitive routines check `CELERY_TM_TIMEZONE` it uses `Europe/Kiev` by default
-
-You can run the worker by executing our program with the `worker` argument
-
-`celery -A worker worker --loglevel=info`
-
-Or check http://docs.celeryproject.org/en/latest/userguide/daemonizing.html if you need to run as demon 
-
-Running beat
+Installation 
 ------------
 
-Beat is designed for getting periodic tasks from API service and putting them onto celery broker
+###### Get latest sources from GitHub
 
-Check `CELERY_TM_BROKER`, `CELERY_TM_TIMEZONE` variables according to your `worker` configuration 
+```bash
+git clone git://github.com/orn0t/celery-tm.git
+```
 
-And set proper `CELERY_TM_TASKS_URL` pointing to API endpoint (http://127.0.0.1:5000/api/v.0.1/pool by default)
+###### Install project dependencies 
 
-Then use `beat` argument to run or look for http://docs.celeryproject.org/en/latest/userguide/daemonizing.html
+```bash
+cd celety-tm
 
-`celery -A beat beat --loglevel=info`
+pip install -r requirements.txt
+```
 
-Running API service
+###### Install and run message queue for Celery - Redis or RabbitMQ
+ 
+If you are using Centos7:
+```bash
+wget http://dl.fedoraproject.org/pub/epel/7/x86_64/e/epel-release-7-5.noarch.rpm
+
+sudo rpm -ivh epel-release-7-5.noarch.rpm
+
+sudo yum -y updates
+sudo yum install redis -y
+
+sudo systemctl start redis.service
+``` 
+ 
+Or even on MacOS:
+```bash
+brew install redis
+
+# starting on system load, not necessary:  
+ln -sfv /usr/local/opt/redis/*.plist ~/Library/LaunchAgents
+
+launchctl load ~/Library/LaunchAgents/homebrew.mxcl.redis.plist
+```
+
+
+Configuration
+--------------
+
+Check `settings.py` for parameters you need:
+  
+```python
+# Web API configuration
+CELERY_TM_API_HOST = '127.0.0.1'
+CELERY_TM_API_PORT = 5000
+
+# Task schedule configuration
+CELERY_TM_BROKER = 'redis://localhost:6379/0'
+CELERY_TM_TIMEZONE = 'Europe/Kiev'
+```
+
+Running application
 -------------------
 
-API web service is based on Flask micro framework so you can set `FLASK_APP` and use `flask run` command
 
-But the simplest way to start is to directly run `python app.py` from application directory
-
-By default app will run on `http://127.0.0.1:5000` 
-To use custom host/port you can change `CELERY_TM_API_HOST` and `CELERY_TM_API_PORT` environment variables 
 
 Using REST API for task management
 ----------------------------------
