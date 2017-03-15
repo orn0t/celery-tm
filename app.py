@@ -95,13 +95,6 @@ def last_update():
     return jsonify(update.as_dict())
 
 
-@app.route('/api/v1.0/pool', methods=['GET'])
-def pool():
-    all_tasks = TaskModel.query.filter_by(run_type='recurring').all()
-
-    return jsonify([t.as_dict() for t in all_tasks])
-
-
 @app.route('/api/v1.0/log', methods=['GET', 'POST'])
 def log():
     pass
