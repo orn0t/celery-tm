@@ -60,69 +60,62 @@ Running application
 
 
 
+
 Using REST API for task management
 ----------------------------------
- 
-#### Adding new task that runs immediately and only once  
- 
-```json
-POST /api/v.0.1/task
-
-{
-  "name": "tasks.module.task_name",
-  "description": "human readable task name",
-  "run_type": "once",
-  "schedule": "now"
-}
-```
-
-#### Adding scheduled single-time task
-
-```json
-POST /api/v.0.1/task
-
-{
-  "name": "tasks.module.task_name",
-  "description": "human readable task name",
-  "run_type": "once",
-  "schedule": __int__timespamp_in_future__
-}
-```
 
 #### Adding scheduled recurring task using cron-like syntax
 
 ```json
-POST /api/v.0.1/task
+POST /api/v1.0/schedule
+data: {
+  "function": "module.function_to_run",
+  "schedule": "1/4 * * * *",
+  "args": [1, 2, "other_argument"]
+}
+```   
 
-{
-  "name": "tasks.module.task_name",
-  "description": "human readable task name",
-  "run_type": "recurring",
-  "schedule": "*/4 * * * *"
+#### Adding scheduled single-time task
+
+```json
+POST /api/v1.0/schedule
+data: {
+  "function": "module.function_to_run",
+  "schedule": ""
+}
+```
+ 
+#### Adding new task that runs immediately and only once  
+ 
+```json
+POST /api/v1.0/schedule
+data: {
+  "function": "module.function_to_run",
+  "schedule": "now"
 }
 ```
 
 #### Adding scheduled recurring task with simple fixed interval in seconds
 
 ```json
-POST /api/v.0.1/task
-
-{
-  "name": "tasks.module.task_name",
-  "description": "human readable task name",
-  "run_type": "recurring",
-  "schedule": 3000
+POST /api/v1.0/schedule
+data: {
+  "function": "module.function_to_run",
+  "schedule": "3000"
 }
 ```
 
 #### Removing task
 
-```
-DELETE /api/v.0.1/task/<int: task_id>
+```json
+DELETE /api/v1.0/schedule
+data: {
+  "id": 1
+}
 ```
 
 #### List all tasks
 
 ```
-GET /api/v.0.1/tasks
+GET /api/v1.0/schedule
 ```
