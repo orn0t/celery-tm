@@ -58,7 +58,13 @@ CELERY_TM_TIMEZONE = 'Europe/Kiev'
 Running application
 -------------------
 
+```bash
+python app.py
 
+celery -A worker worker 
+
+celery -A beat beat
+```
 
 
 Using REST API for task management
@@ -75,16 +81,6 @@ data: {
 }
 ```   
 
-#### Adding scheduled single-time task
-
-```json
-POST /api/v1.0/schedule
-data: {
-  "function": "module.function_to_run",
-  "schedule": ""
-}
-```
- 
 #### Adding new task that runs immediately and only once  
  
 ```json
