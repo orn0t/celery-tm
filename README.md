@@ -80,6 +80,16 @@ data: {
   "args": [1, 2, "other_argument"]
 }
 ```   
+Result:
+```json
+Status: 201 CREATED
+{
+  "function": "time.time",
+  "schedule": "1 * * * *",
+  "id": 2,
+  "created": "Wed, 15 Mar 2017 14:06:21 -0000"
+}
+```
 
 #### Adding new task that runs immediately and only once  
  
@@ -109,9 +119,52 @@ data: {
   "id": 1
 }
 ```
+Result:
+```json
+Status: 204
+```
 
 #### List all tasks
 
 ```
 GET /api/v1.0/schedule
+```
+Result:
+```json
+Status: 200
+[
+  {
+    "function": "time.time",
+    "schedule": "1 * * * *",
+    "id": 1,
+    "created": "Wed, 15 Mar 2017 16:44:07 -0000"
+  }, 
+  
+  ...
+   
+]
+```
+
+#### Get task by id
+
+```
+GET /api/v1.0/schedule?id=2
+```
+Result:
+```json
+Status: 200
+[
+  {
+    "function": "time.time",
+    "schedule": "1 * * * *",
+    "id": 2,
+    "created": "Wed, 15 Mar 2017 16:44:07 -0000"
+  }
+]
+```
+
+#### Get only recurring tasks
+
+```
+GET /api/v1.0/schedule?recurring=1
 ```
