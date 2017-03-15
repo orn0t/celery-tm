@@ -18,7 +18,11 @@ def dynamicTask(taskname, taskargs):
     module = importlib.import_module(modulename)
     func = getattr(module, funcname)
 
+    print taskname, taskargs
+
     # arguments can be proceed as positional list or key-value
+    if not taskargs:
+        return func()
     if isinstance(taskargs, dict):
         return func(**taskargs)
     elif isinstance(taskargs, list):
