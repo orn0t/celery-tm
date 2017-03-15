@@ -1,13 +1,13 @@
 Installation 
 ------------
 
-###### Get latest sources from GitHub
+#### Get latest sources from GitHub
 
 ```bash
 git clone git://github.com/orn0t/celery-tm.git
 ```
 
-###### Install project dependencies 
+#### Install project dependencies 
 
 ```bash
 cd celety-tm
@@ -15,7 +15,7 @@ cd celety-tm
 pip install -r requirements.txt
 ```
 
-###### Install and run message queue for Celery - Redis or RabbitMQ
+#### Install and run message queue for Celery - Redis or RabbitMQ
  
 If you are using Centos7:
 ```bash
