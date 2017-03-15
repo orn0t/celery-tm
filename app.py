@@ -35,10 +35,15 @@ class Schedule(Resource):
     def get(self):
         parser = reqparse.RequestParser()
         parser.add_argument('id', type=int, required=False)
-        fields = parser.parse_args()
+        parser.add_argument('recurring', type=int, required=False)
+        args = parser.parse_args()
 
-        if fields.id:
-            tasks = TaskModel.query.filter_by(**fields).all()
+        for k in args.keys():
+            if args[k] == None:
+                args.pop(k)
+
+        if fields:
+            tasks = TaskModel.query.filter_by(**args).all()
         else:
             tasks = TaskModel.query.all()
 
@@ -57,8 +62,6 @@ class Schedule(Resource):
         uuid = ''
         if 'now' == schedule['schedule']:
             uuid = cel.send_task('worker.dynamicTask', kwargs={'taskname': schedule.function, 'taskargs': schedule.args})
-
-            print uuid
         elif schedule['schedule'].isdigit():
             time_now = time.time()
             time_gap = (int(schedule.schedule) - time_now) / 1000
@@ -76,13 +79,13 @@ class Schedule(Resource):
     def delete(self):
         parser = reqparse.RequestParser()
         parser.add_argument('id', type=int, location='json')
-        fields = parser.parse_args()
+        args = parser.parse_args()
 
-        if TaskModel.query.filter_by(**fields).delete():
+        if TaskModel.query.filter_by(**args).delete():
             db.session.commit()
             return '', 204
-        else:
-            return '', 404
+
+        return '', 404
 
 
 @app.route('/api/v1.0/last_update')
