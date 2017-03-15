@@ -55,9 +55,11 @@ class Schedule(Resource):
         task = TaskModel(schedule)
 
         uuid = ''
-        if 'now' == schedule.schedule:
+        if 'now' == schedule['schedule']:
             uuid = cel.send_task('worker.dynamicTask', kwargs={'taskname': schedule.function, 'taskargs': schedule.args})
-        elif schedule.schedule.isdigit():
+
+            print uuid
+        elif schedule['schedule'].isdigit():
             time_now = time.time()
             time_gap = (int(schedule.schedule) - time_now) / 1000
 
@@ -81,12 +83,6 @@ class Schedule(Resource):
             return '', 204
         else:
             return '', 404
-
-@app.route('/api/v1.0/tasks', methods=['GET'])
-def tasks():
-    all_tasks = TaskModel.query.all()
-
-    return jsonify([t.as_dict() for t in all_tasks])
 
 
 @app.route('/api/v1.0/last_update')
