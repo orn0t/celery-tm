@@ -25,7 +25,7 @@ class DynamicScheduler(Scheduler):
     def is_schedule_changed(self):
         # Checking remote timestamp that changing on each schedule modification
         try:
-            updates_url = os.getenv('CELERY_TM_TASKS_URL', 'http://127.0.0.1:5000/api/v1.0/last_update')
+            updates_url = settings.CELERY_TM_API_ROOT + '/api/v1.0/last_update'
             r = requests.get(updates_url)
             if r.status_code == 200:
                 res = r.json()
@@ -61,7 +61,7 @@ class DynamicScheduler(Scheduler):
         # Pooling remote for tasks list and converting them to proper Entry objects
         s = {}
         try:
-            tasks_url = os.getenv('CELERY_TM_TASKS_URL', 'http://127.0.0.1:5000/api/v1.0/pool')
+            tasks_url = settings.CELERY_TM_API_ROOT + '/api/v1.0/schedule?recurring=1'
             r = requests.get(tasks_url)
             if r.status_code == 200:
                 for task in r.json():
