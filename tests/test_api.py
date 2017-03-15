@@ -70,6 +70,43 @@ class APITestCase(unittest.TestCase):
         res = self.app.delete('/api/v1.0/schedule', json={'id': task.id})
         assert res.status_code == 204
 
+    """ Testing tasks retrieve endpoint """
+
+    def test_can_retrieve_all_tasks(self):
+        task_recurring = TaskModel({'function': 'time.time', 'schedule': '1 * * * *'})
+        task_once = TaskModel({'function': 'time.time', 'schedule': 'now'})
+        db.session.add(task_recurring)
+        db.session.add(task_once)
+        db.session.commit()
+
+        res = self.app.get('/api/v1.0/schedule')
+        j = json.loads(res.data)
+        assert len(j) == 2
+
+    def test_can_retrieve_task_by_id(self):
+        task_recurring = TaskModel({'function': 'time.time', 'schedule': '1 * * * *'})
+        task_once = TaskModel({'function': 'time.time', 'schedule': 'now'})
+        db.session.add(task_recurring)
+        db.session.add(task_once)
+        db.session.commit()
+
+        res = self.app.get('/api/v1.0/schedule', data={'id': task_once.id})
+        j = json.loads(res.data)
+        assert len(j) == 1
+
+    def test_can_retrieve_only_recurring_tasks(self):
+        task_recurring = TaskModel({'function': 'time.time', 'schedule': '1 * * * *'})
+        task_once = TaskModel({'function': 'time.time', 'schedule': 'now'})
+        db.session.add(task_recurring)
+        db.session.add(task_once)
+        db.session.commit()
+
+        res = self.app.get('/api/v1.0/schedule', data={'recurring': 1})
+        j = json.loads(res.data)
+
+        print res.data
+
+        assert len(j) == 1
 
     """ Testing last_update endpoint """
 
