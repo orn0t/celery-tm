@@ -4,3 +4,5 @@
 *.db
 *.pid
 *.rdb
+/cover/
+/.coverage
