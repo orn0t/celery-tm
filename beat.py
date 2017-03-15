@@ -3,14 +3,15 @@
 
 import os
 import requests
-from celery import Celery, signals
-from celery.beat import Scheduler, ScheduleEntry
+from celery import Celery
+from celery.beat import Scheduler
 from celery.schedules import crontab
 from requests import ConnectionError
 
-tm_broker = os.getenv('CELERY_TM_BROKER', 'redis://localhost:6379/0')
-app = Celery(__name__, broker=tm_broker)
-app.conf.timezone = os.getenv('CELERY_TM_TIMEZONE', 'Europe/Kiev')
+import settings
+
+app = Celery(__name__, broker=settings.CELERY_TM_BROKER)
+app.conf.timezone = settings.CELERY_TM_TIMEZONE
 app.conf.beat_max_loop_interval = 10
 
 
@@ -24,7 +25,7 @@ class DynamicScheduler(Scheduler):
     def is_schedule_changed(self):
         # Checking remote timestamp that changing on each schedule modification
         try:
-            updates_url = os.getenv('CELERY_TM_TASKS_URL', 'http://127.0.0.1:5000/api/v.0.1/last_update')
+            updates_url = os.getenv('CELERY_TM_TASKS_URL', 'http://127.0.0.1:5000/api/v1.0/last_update')
             r = requests.get(updates_url)
             if r.status_code == 200:
                 res = r.json()
@@ -60,7 +61,7 @@ class DynamicScheduler(Scheduler):
         # Pooling remote for tasks list and converting them to proper Entry objects
         s = {}
         try:
-            tasks_url = os.getenv('CELERY_TM_TASKS_URL', 'http://127.0.0.1:5000/api/v.0.1/pool')
+            tasks_url = os.getenv('CELERY_TM_TASKS_URL', 'http://127.0.0.1:5000/api/v1.0/pool')
             r = requests.get(tasks_url)
             if r.status_code == 200:
                 for task in r.json():

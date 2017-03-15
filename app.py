@@ -1,15 +1,18 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 import time
-import os
 
 from flask import Flask, jsonify
 from flask_restful import Resource, Api, reqparse, marshal_with, fields
 
-from sqlalchemy import func, event
+from sqlalchemy import func
 
 from celery import Celery
 from models import db, TaskModel, UpdatesModel
+
+import settings
+
+cel = Celery(__name__, broker=settings.CELERY_TM_BROKER)
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
@@ -120,7 +123,4 @@ def result(uuid):
 api.add_resource(Schedule, '/api/v1.0/schedule')
 
 if __name__ == "__main__":
-    # @todo: configure host/port from env
-    APP_HOST = os.getenv('CELERY_TM_API_HOST', '127.0.0.1')
-    APP_PORT = os.getenv('CELERY_TM_API_PORT', 5000)
-    app.run(host=APP_HOST, port=APP_PORT)
+    app.run(host=settings.CELERY_TM_API_HOST, port=settings.CELERY_TM_API_PORT)
